@@ -112,7 +112,7 @@ Redwan TTS Pro
 
 <script>
 // API Key is left empty for the canvas environment.
-const API_KEY="";
+const API_KEY="AIzaSyB9g6E3_bK9wvKAS1gDa2EaebprNAKh2a8";
 const voiceData={'en-US':[{"name":"Zephyr (Bright, Male)","voice":"Zephyr"},{"name":"Kore (Firm, Male)","voice":"Kore"},{"name":"Leda (Youthful, Female)","voice":"Leda"}],'bn-BD':[{"name":"Aoede (Breezy, Female)","voice":"Aoede"},{"name":"Achernar (Soft, Female)","voice":"Achernar"},{"name":"Orus (Firm, Male)","voice":"Orus"}],'hi-IN':[{"name":"Gacrux (Mature, Male)","voice":"Gacrux"},{"name":"Algenib (Gravelly, Male)","voice":"Algenib"},{"name":"Erinome (Clear, Female)","voice":"Erinome"}]};
 
 function populateVoices(lang){const sel=document.getElementById('voiceSelect');sel.innerHTML='';(voiceData[lang]||[]).forEach(v=>{const o=document.createElement('option');o.value=v.voice;o.textContent=v.name;sel.appendChild(o);});}
@@ -131,7 +131,7 @@ const pcmToWav=(pcm16,sampleRate)=>{const numChannels=1,bytesPerSample=2,buffer=
 
 // TTS Generation function (using gemini-2.5-flash-preview-tts)
 async function generateSpeech(text,voiceName,style){
-    const apiUrl=`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${API_KEY}`;
+    const apiUrl=`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${AIzaSyB9g6E3_bK9wvKAS1gDa2EaebprNAKh2a8}`;
     
     // Use tone instruction in parentheses to guide model without reading the instruction text
     const userPrompt = style ? `(speak with a ${style} tone) ${text}` : text;
@@ -185,7 +185,7 @@ async function generateSpeech(text,voiceName,style){
 
 // **New LLM Text Generation Function (using gemini-2.5-flash-preview-09-2025)**
 async function callGeminiTextAPI(systemPrompt, userQuery, buttonId) {
-    const textApiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${API_KEY}`;
+    const textApiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${AIzaSyB9g6E3_bK9wvKAS1gDa2EaebprNAKh2a8}`;
     
     const button = document.getElementById(buttonId);
     const originalContent = button.innerHTML;
@@ -364,3 +364,4 @@ document.addEventListener('DOMContentLoaded', () => {
 
 </body>
 </html>
+
