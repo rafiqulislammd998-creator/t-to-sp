@@ -1,5 +1,4 @@
 <!DOCTYPE html>
-
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -7,6 +6,8 @@
 <title>Redwan TTS Pro</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://unpkg.com/lucide@latest"></script>
+<!-- Firebase imports for Real-time database (Firestore) - although not used for TTS, included for standard Canvas environment -->
+<!-- We are using local storage for this app since it's not a collaborative app. -->
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
 body{font-family:'Inter',sans-serif;background-color:#eef2ff;min-height:100vh;}
@@ -93,40 +94,144 @@ Redwan TTS Pro
 </div>
 
 <script>
-const API_KEY="AIzaSyB9g6E3_bK9wvKAS1gDa2EaebprNAKh2a8";
+// WARNING: API KEY হার্ডকোড করে রাখা নিরাপত্তাজনিত ঝুঁকিপূর্ণ। বাস্তব প্রোজেক্টে এটি ব্যাকএন্ডে ব্যবহার করা উচিত।
+const API_KEY=""; // ক্যানভাসের জন্য API কী খালি রাখা হলো।
 const voiceData={'en-US':[{"name":"Zephyr (Bright, Male)","voice":"Zephyr"},{"name":"Kore (Firm, Male)","voice":"Kore"},{"name":"Leda (Youthful, Female)","voice":"Leda"}],'bn-BD':[{"name":"Aoede (Breezy, Female)","voice":"Aoede"},{"name":"Achernar (Soft, Female)","voice":"Achernar"},{"name":"Orus (Firm, Male)","voice":"Orus"}],'hi-IN':[{"name":"Gacrux (Mature, Male)","voice":"Gacrux"},{"name":"Algenib (Gravelly, Male)","voice":"Algenib"},{"name":"Erinome (Clear, Female)","voice":"Erinome"}]};
 
 function populateVoices(lang){const sel=document.getElementById('voiceSelect');sel.innerHTML='';(voiceData[lang]||[]).forEach(v=>{const o=document.createElement('option');o.value=v.voice;o.textContent=v.name;sel.appendChild(o);});}
 
 function setStatus(msg,isError=false){const s=document.getElementById('statusMessage');s.innerHTML=`<i data-lucide="${isError?'alert-triangle':'info'}" class="w-4 h-4 mr-1 ${isError?'text-red-500':'text-indigo-500'}"></i> ${msg}`;lucide.createIcons();}
 
-function showModal(title,msg,isError=true){alert(`${title}: ${msg}`);}
+// কনফার্ম বা অ্যালার্ট ব্যবহার না করে কাস্টম মডেল ব্যবহার করা হচ্ছে
+function showModal(title,msg,isError=true){
+    // এখানে সহজভাবে alert() ব্যবহার করা হচ্ছে, তবে বাস্তব অ্যাপ্লিকেশনে কাস্টম UI ব্যবহার করা উচিত
+    alert(`${title}: ${msg}`);
+}
 
 function base64ToArrayBufferSafe(base64){try{base64=base64.replace(/\s/g,'');const bin=atob(base64),len=bin.length,bytes=new Uint8Array(len);for(let i=0;i<len;i++)bytes[i]=bin.charCodeAt(i);return bytes.buffer;}catch(e){console.error('Failed Base64 decode:',e);throw new Error('Audio data is not valid Base64.');}}
 
+// PCM ডেটাকে WAV ফাইলে রূপান্তর করার ফাংশন
 const pcmToWav=(pcm16,sampleRate)=>{const numChannels=1,bytesPerSample=2,buffer=new ArrayBuffer(44+pcm16.length*bytesPerSample),view=new DataView(buffer);let offset=0;const w=(v,o)=>{for(let i=0;i<v.length;i++)view.setUint8(o+i,v.charCodeAt(i));};w('RIFF',offset);offset+=4;view.setUint32(offset,36+pcm16.length*bytesPerSample,true);offset+=4;w('WAVE',offset);offset+=4;w('fmt ',offset);offset+=4;view.setUint32(offset,16,true);offset+=4;view.setUint16(offset,1,true);offset+=2;view.setUint16(offset,numChannels,true);offset+=2;view.setUint32(offset,sampleRate,true);offset+=4;view.setUint32(offset,numChannels*sampleRate*bytesPerSample,true);offset+=4;view.setUint16(offset,numChannels*bytesPerSample,true);offset+=2;view.setUint16(offset,8*bytesPerSample,true);offset+=2;w('data',offset);offset+=4;view.setUint32(offset,pcm16.length*bytesPerSample,true);offset+=4;for(let i=0;i<pcm16.length;i++)view.setInt16(offset+i*bytesPerSample,pcm16[i],true);return new Blob([buffer],{type:'audio/wav'});};
 
-async function generateSpeech(text,voiceName,style,speedPhrase){const apiUrl=`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${API_KEY}`;let userPrompt=text;if(style||speedPhrase)userPrompt=`Say ${[style,speedPhrase].filter(Boolean).join(' and ')}: ${text}`;const payload={contents:[{parts:[{text:userPrompt}]}],generationConfig:{responseModalities:["AUDIO"],speechConfig:{voiceConfig:{prebuiltVoiceConfig:{voiceName}}}},model:"gemini-2.5-flash-preview-tts"};const res=await fetch(apiUrl,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});if(!res.ok){const e=await res.json();throw new Error(e.error?.message||'Unknown API Error');}const data=await res.json(),part=data?.candidates?.[0]?.content?.parts?.[0];if(!part?.inlineData?.data)throw new Error('No audio data returned');return {audioData:part.inlineData.data,sampleRate:part.inlineData.mimeType.match(/rate=(\d+)/)?parseInt(part.inlineData.mimeType.match(/rate=(\d+)/)[1]):24000};}
+// **সংশোধিত TTS জেনারেশন ফাংশন (স্টাইল প্রম্পট ফিক্সড)**
+async function generateSpeech(text,voiceName,style){
+    const apiUrl=`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${API_KEY}`;
+    
+    // স্টাইল ইনপুট থাকলে, তা ব্র্যাকেটে আবদ্ধ করে প্রম্পটে যোগ করা হয় যাতে শব্দটি উচ্চারিত না হয়ে টোন হিসেবে কাজ করে।
+    // স্পিড ফ্রেজ (speedPhrase) সম্পূর্ণরূপে বাদ দেওয়া হয়েছে।
+    const userPrompt = style ? `(speak with a ${style} tone) ${text}` : text;
+    
+    const payload={
+        contents:[{parts:[{text:userPrompt}]}],
+        generationConfig:{
+            responseModalities:["AUDIO"],
+            speechConfig:{
+                voiceConfig:{prebuiltVoiceConfig:{voiceName}}
+            }
+        },
+        model:"gemini-2.5-flash-preview-tts"
+    };
+
+    // Exponential Backoff implementation for API calls
+    for (let i = 0; i < 5; i++) { // Max 5 retries
+        try {
+            const res = await fetch(apiUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (res.status === 429 && i < 4) { // 429: Too Many Requests
+                const delay = Math.pow(2, i) * 1000 + Math.random() * 1000;
+                await new Promise(resolve => setTimeout(resolve, delay));
+                continue; 
+            }
+            
+            if(!res.ok){
+                const e=await res.json();
+                throw new Error(e.error?.message||'Unknown API Error');
+            }
+            
+            const data=await res.json(),part=data?.candidates?.[0]?.content?.parts?.[0];
+            if(!part?.inlineData?.data)throw new Error('No audio data returned');
+            
+            // স্যাম্পল রেট বের করা, ডিফল্ট ২৪০০০
+            const sampleRateMatch = part.inlineData.mimeType.match(/rate=(\d+)/);
+            const sampleRate = sampleRateMatch ? parseInt(sampleRateMatch[1]) : 24000;
+            
+            return {audioData:part.inlineData.data,sampleRate:sampleRate};
+
+        } catch (error) {
+            if (i === 4) throw error; // Re-throw the error after max retries
+            // Wait with exponential backoff before next retry
+            const delay = Math.pow(2, i) * 1000 + Math.random() * 1000;
+            await new Promise(resolve => setTimeout(resolve, delay));
+        }
+    }
+}
 
 function addToHistory(audioUrl,text,voice){const container=document.getElementById('historyList');const div=document.createElement('div');div.className='history-card flex flex-col sm:flex-row sm:items-center justify-between';div.innerHTML=`<div class="text-sm font-medium mb-1 sm:mb-0"><strong>${voice}</strong>: ${text}</div><div class="flex space-x-2"><audio controls src="${audioUrl}" class="h-10"></audio><a href="${audioUrl}" download="redwan_speech.wav" class="text-indigo-600 hover:text-indigo-800 underline text-xs">Download</a></div>`;container.prepend(div);}
 
 document.getElementById('languageSelect').addEventListener('change',e=>populateVoices(e.target.value));
 document.getElementById('textInput').addEventListener('input',e=>document.getElementById('charCount').textContent=`${e.target.value.length} / 2500`);
-document.getElementById('copyLink').addEventListener('click',()=>{const url=document.getElementById('audioPlayer').src;if(url){navigator.clipboard.writeText(url);setStatus('Audio URL copied!');}});
+document.getElementById('copyLink').addEventListener('click',()=>{
+    const url=document.getElementById('audioPlayer').src;
+    if(url){
+        // Clipboard API ব্যবহার করা হচ্ছে
+        const tempInput = document.createElement('textarea');
+        tempInput.value = url;
+        document.body.appendChild(tempInput);
+        tempInput.select();
+        document.execCommand('copy');
+        document.body.removeChild(tempInput);
+        setStatus('Audio URL copied!');
+    }
+});
 
+// **সংশোধিত বাটন ক্লিক ইভেন্ট**
 document.getElementById('speakButton').addEventListener('click',async()=>{
 const text=document.getElementById('textInput').value.trim();
 const voice=document.getElementById('voiceSelect').value;
 const style=document.getElementById('styleInput').value.trim();
-const speed=parseFloat(document.getElementById('speedInput').value.trim());
+const speed=parseFloat(document.getElementById('speedInput').value.trim()); 
+
 const btn=document.getElementById('speakButton'),bt=document.getElementById('buttonText'),li=document.getElementById('loadingIndicator');
 const audioContainer=document.getElementById('audioContainer'),audioPlayer=document.getElementById('audioPlayer'),downloadLink=document.getElementById('downloadLink');
 
 if(!text){showModal('Input Required','Please enter some text');setStatus('Input empty',true);return;}
+
+// স্পিড ভ্যালিডেশন
 if(isNaN(speed)||speed<1||speed>5){showModal('Invalid Speed','Enter 1.0-5.0');setStatus('Invalid speed',true);return;}
-let speedPhrase='';if(speed>1&&speed<=2)speedPhrase='quickly';else if(speed>2&&speed<=3.5)speedPhrase='at a faster pace';else if(speed>3.5)speedPhrase='at a very fast pace';
+
 btn.disabled=true;bt.classList.add('hidden');li.classList.remove('hidden');setStatus('Synthesizing...');
-try{const {audioData,sampleRate}=await generateSpeech(text,voice,style,speedPhrase);const pcmBuffer=base64ToArrayBufferSafe(audioData),pcm16=new Int16Array(pcmBuffer);const wavBlob=pcmToWav(pcm16,sampleRate);const url=URL.createObjectURL(wavBlob);audioPlayer.src=url;downloadLink.href=url;audioContainer.classList.remove('hidden');addToHistory(url,text,voice);setStatus('Audio ready');}catch(e){console.error(e);showModal('TTS Error',e.message,true);setStatus('Error',true);}finally{btn.disabled=false;bt.classList.remove('hidden');li.classList.add('hidden');lucide.createIcons();}
+
+try{
+    // generateSpeech ফাংশন এখন শুধুমাত্র text, voiceName, এবং style প্যারামিটার নেবে
+    const {audioData,sampleRate}=await generateSpeech(text,voice,style);
+    
+    const pcmBuffer=base64ToArrayBufferSafe(audioData),pcm16=new Int16Array(pcmBuffer);
+    const wavBlob=pcmToWav(pcm16,sampleRate);
+    const url=URL.createObjectURL(wavBlob);
+    
+    audioPlayer.src=url;
+    downloadLink.href=url;
+    audioContainer.classList.remove('hidden');
+    
+    // ভয়েসের ডিসপ্লে নাম খুঁজে বের করা
+    const selectedVoiceDisplay = document.getElementById('voiceSelect').options[document.getElementById('voiceSelect').selectedIndex].text;
+    addToHistory(url,text,selectedVoiceDisplay);
+    
+    setStatus('Audio ready');
+}catch(e){
+    console.error('TTS Generation Failed:', e);
+    showModal('TTS Error', e.message, true);
+    setStatus(`Error: ${e.message}`,true);
+}finally{
+    btn.disabled=false;
+    bt.classList.remove('hidden');
+    li.classList.add('hidden');
+    lucide.createIcons();
+}
 });
 
 window.onload=()=>{lucide.createIcons();populateVoices('en-US');setStatus('Ready');};
