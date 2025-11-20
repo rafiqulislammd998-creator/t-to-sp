@@ -15,7 +15,9 @@ body{font-family:'Inter',sans-serif;background-color:#eef2ff;min-height:100vh;}
 .speak-button{transition:all 0.2s ease-in-out;background:linear-gradient(to right,#4c46e4,#6366f1);border:none;}
 .speak-button:hover:not(:disabled){background:linear-gradient(to right,#3f3baa,#5b5ec8);box-shadow:0 8px 20px rgba(76,70,228,0.4);transform:translateY(-1px);}
 .speak-button:disabled{background-color:#cbd5e1;background-image:none;cursor:not-allowed;box-shadow:none;transform:none;}
+.llm-button:disabled { background-color: #cbd5e1 !important; cursor: not-allowed; opacity: 0.7;}
 .loading-ring{border:4px solid #e0e7ff;border-top:4px solid #fff;border-radius:50%;width:24px;height:24px;animation:spin 1s linear infinite;}
+.loading-ring-sm{border:2px solid rgba(255,255,255,0.5);border-top:2px solid #fff;border-radius:50%;width:16px;height:16px;animation:spin 1s linear infinite;}
 @keyframes spin{0%{transform:rotate(0deg);}100%{transform:rotate(360deg);}}
 textarea::-webkit-scrollbar{width:6px;}textarea::-webkit-scrollbar-thumb{background-color:#9ca3af;border-radius:3px;}textarea::-webkit-scrollbar-track{background-color:#f3f4f6;}
 .history-card{background:white;padding:0.75rem 1rem;border-radius:0.75rem;box-shadow:0 4px 10px rgba(0,0,0,0.1);margin-bottom:0.5rem;}
@@ -63,15 +65,30 @@ Redwan TTS Pro
 
 <p id="charCount" class="text-xs text-gray-500 mt-1 text-right">0 / 2500</p>
 
-<div class="flex flex-col sm:flex-row items-center justify-between mt-6 space-y-4 sm:space-y-0">
-<button id="speakButton" class="speak-button text-white font-bold py-3 px-8 rounded-full shadow-lg hover:shadow-2xl transition duration-300 w-full sm:w-auto flex items-center justify-center min-w-[280px]">
-<span id="buttonText" class="flex items-center"><i data-lucide="volume-2" class="w-5 h-5 mr-2"></i> Generate & Speak Audio</span>
-<div id="loadingIndicator" class="loading-ring hidden"></div>
-</button>
-<div id="statusMessage" class="text-sm font-medium text-gray-600 flex items-center">
-<i data-lucide="info" class="w-4 h-4 mr-1 text-indigo-500"></i> Ready to synthesize.
+<!-- Start of LLM-enhanced button section -->
+<div class="flex flex-col gap-4 mt-6">
+    <!-- Row 1: Main TTS Button and Status -->
+    <div class="flex flex-col md:flex-row items-center justify-between">
+        <button id="speakButton" class="speak-button text-white font-bold py-3 px-8 rounded-full shadow-lg hover:shadow-2xl transition duration-300 w-full md:w-auto flex items-center justify-center min-w-[280px]">
+            <span id="buttonText" class="flex items-center"><i data-lucide="volume-2" class="w-5 h-5 mr-2"></i> Generate & Speak Audio</span>
+            <div id="loadingIndicator" class="loading-ring hidden"></div>
+        </button>
+        <div id="statusMessage" class="text-sm font-medium text-gray-600 mt-4 md:mt-0 flex items-center">
+            <i data-lucide="info" class="w-4 h-4 mr-1 text-indigo-500"></i> Ready to synthesize.
+        </div>
+    </div>
+
+    <!-- Row 2: LLM Enhancement Buttons -->
+    <div class="flex flex-wrap gap-3 justify-center mt-2">
+        <button id="summarizeButton" class="llm-button text-white font-bold py-2 px-5 rounded-full shadow transition duration-300 flex items-center justify-center bg-green-600 hover:bg-green-700 w-full sm:w-auto">
+            <i data-lucide="file-text" class="w-4 h-4 mr-1"></i> ✨ Summarize Text
+        </button>
+        <button id="simplifyButton" class="llm-button text-white font-bold py-2 px-5 rounded-full shadow transition duration-300 flex items-center justify-center bg-purple-600 hover:bg-purple-700 w-full sm:w-auto">
+            <i data-lucide="wand-2" class="w-4 h-4 mr-1"></i> ✨ Simplify Text
+        </button>
+    </div>
 </div>
-</div>
+<!-- End of LLM-enhanced button section -->
 
 <div id="audioContainer" class="hidden mt-8 bg-indigo-50 p-6 rounded-xl border border-indigo-200">
 <h3 class="text-base font-bold text-indigo-800 mb-3 flex items-center"><i data-lucide="waveform" class="w-5 h-5 mr-2"></i>Generated Audio Playback</h3>
@@ -94,31 +111,29 @@ Redwan TTS Pro
 </div>
 
 <script>
-// WARNING: API KEY হার্ডকোড করে রাখা নিরাপত্তাজনিত ঝুঁকিপূর্ণ। বাস্তব প্রোজেক্টে এটি ব্যাকএন্ডে ব্যবহার করা উচিত।
-const API_KEY=""; // ক্যানভাসের জন্য API কী খালি রাখা হলো।
+// API Key is left empty for the canvas environment.
+const API_KEY="";
 const voiceData={'en-US':[{"name":"Zephyr (Bright, Male)","voice":"Zephyr"},{"name":"Kore (Firm, Male)","voice":"Kore"},{"name":"Leda (Youthful, Female)","voice":"Leda"}],'bn-BD':[{"name":"Aoede (Breezy, Female)","voice":"Aoede"},{"name":"Achernar (Soft, Female)","voice":"Achernar"},{"name":"Orus (Firm, Male)","voice":"Orus"}],'hi-IN':[{"name":"Gacrux (Mature, Male)","voice":"Gacrux"},{"name":"Algenib (Gravelly, Male)","voice":"Algenib"},{"name":"Erinome (Clear, Female)","voice":"Erinome"}]};
 
 function populateVoices(lang){const sel=document.getElementById('voiceSelect');sel.innerHTML='';(voiceData[lang]||[]).forEach(v=>{const o=document.createElement('option');o.value=v.voice;o.textContent=v.name;sel.appendChild(o);});}
 
 function setStatus(msg,isError=false){const s=document.getElementById('statusMessage');s.innerHTML=`<i data-lucide="${isError?'alert-triangle':'info'}" class="w-4 h-4 mr-1 ${isError?'text-red-500':'text-indigo-500'}"></i> ${msg}`;lucide.createIcons();}
 
-// কনফার্ম বা অ্যালার্ট ব্যবহার না করে কাস্টম মডেল ব্যবহার করা হচ্ছে
 function showModal(title,msg,isError=true){
-    // এখানে সহজভাবে alert() ব্যবহার করা হচ্ছে, তবে বাস্তব অ্যাপ্লিকেশনে কাস্টম UI ব্যবহার করা উচিত
+    // Use alert() as a fallback for modal UI in the canvas environment
     alert(`${title}: ${msg}`);
 }
 
 function base64ToArrayBufferSafe(base64){try{base64=base64.replace(/\s/g,'');const bin=atob(base64),len=bin.length,bytes=new Uint8Array(len);for(let i=0;i<len;i++)bytes[i]=bin.charCodeAt(i);return bytes.buffer;}catch(e){console.error('Failed Base64 decode:',e);throw new Error('Audio data is not valid Base64.');}}
 
-// PCM ডেটাকে WAV ফাইলে রূপান্তর করার ফাংশন
+// PCM to WAV conversion function
 const pcmToWav=(pcm16,sampleRate)=>{const numChannels=1,bytesPerSample=2,buffer=new ArrayBuffer(44+pcm16.length*bytesPerSample),view=new DataView(buffer);let offset=0;const w=(v,o)=>{for(let i=0;i<v.length;i++)view.setUint8(o+i,v.charCodeAt(i));};w('RIFF',offset);offset+=4;view.setUint32(offset,36+pcm16.length*bytesPerSample,true);offset+=4;w('WAVE',offset);offset+=4;w('fmt ',offset);offset+=4;view.setUint32(offset,16,true);offset+=4;view.setUint16(offset,1,true);offset+=2;view.setUint16(offset,numChannels,true);offset+=2;view.setUint32(offset,sampleRate,true);offset+=4;view.setUint32(offset,numChannels*sampleRate*bytesPerSample,true);offset+=4;view.setUint16(offset,numChannels*bytesPerSample,true);offset+=2;view.setUint16(offset,8*bytesPerSample,true);offset+=2;w('data',offset);offset+=4;view.setUint32(offset,pcm16.length*bytesPerSample,true);offset+=4;for(let i=0;i<pcm16.length;i++)view.setInt16(offset+i*bytesPerSample,pcm16[i],true);return new Blob([buffer],{type:'audio/wav'});};
 
-// **সংশোধিত TTS জেনারেশন ফাংশন (স্টাইল প্রম্পট ফিক্সড)**
+// TTS Generation function (using gemini-2.5-flash-preview-tts)
 async function generateSpeech(text,voiceName,style){
     const apiUrl=`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${API_KEY}`;
     
-    // স্টাইল ইনপুট থাকলে, তা ব্র্যাকেটে আবদ্ধ করে প্রম্পটে যোগ করা হয় যাতে শব্দটি উচ্চারিত না হয়ে টোন হিসেবে কাজ করে।
-    // স্পিড ফ্রেজ (speedPhrase) সম্পূর্ণরূপে বাদ দেওয়া হয়েছে।
+    // Use tone instruction in parentheses to guide model without reading the instruction text
     const userPrompt = style ? `(speak with a ${style} tone) ${text}` : text;
     
     const payload={
@@ -132,8 +147,8 @@ async function generateSpeech(text,voiceName,style){
         model:"gemini-2.5-flash-preview-tts"
     };
 
-    // Exponential Backoff implementation for API calls
-    for (let i = 0; i < 5; i++) { // Max 5 retries
+    // Exponential Backoff for API calls
+    for (let i = 0; i < 5; i++) { 
         try {
             const res = await fetch(apiUrl, {
                 method: 'POST',
@@ -141,7 +156,7 @@ async function generateSpeech(text,voiceName,style){
                 body: JSON.stringify(payload)
             });
 
-            if (res.status === 429 && i < 4) { // 429: Too Many Requests
+            if (res.status === 429 && i < 4) {
                 const delay = Math.pow(2, i) * 1000 + Math.random() * 1000;
                 await new Promise(resolve => setTimeout(resolve, delay));
                 continue; 
@@ -155,20 +170,71 @@ async function generateSpeech(text,voiceName,style){
             const data=await res.json(),part=data?.candidates?.[0]?.content?.parts?.[0];
             if(!part?.inlineData?.data)throw new Error('No audio data returned');
             
-            // স্যাম্পল রেট বের করা, ডিফল্ট ২৪০০০
             const sampleRateMatch = part.inlineData.mimeType.match(/rate=(\d+)/);
             const sampleRate = sampleRateMatch ? parseInt(sampleRateMatch[1]) : 24000;
             
             return {audioData:part.inlineData.data,sampleRate:sampleRate};
 
         } catch (error) {
-            if (i === 4) throw error; // Re-throw the error after max retries
-            // Wait with exponential backoff before next retry
+            if (i === 4) throw error;
             const delay = Math.pow(2, i) * 1000 + Math.random() * 1000;
             await new Promise(resolve => setTimeout(resolve, delay));
         }
     }
 }
+
+// **New LLM Text Generation Function (using gemini-2.5-flash-preview-09-2025)**
+async function callGeminiTextAPI(systemPrompt, userQuery, buttonId) {
+    const textApiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${API_KEY}`;
+    
+    const button = document.getElementById(buttonId);
+    const originalContent = button.innerHTML;
+    
+    button.disabled = true;
+    button.innerHTML = '<div class="loading-ring-sm mr-2"></div> Processing...';
+    setStatus('Processing LLM request...');
+
+    const payload = {
+        contents: [{ parts: [{ text: userQuery }] }],
+        systemInstruction: { parts: [{ text: systemPrompt }] },
+    };
+
+    // Exponential Backoff for API calls
+    for (let i = 0; i < 5; i++) {
+        try {
+            const res = await fetch(textApiUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (res.status === 429 && i < 4) {
+                const delay = Math.pow(2, i) * 1000 + Math.random() * 1000;
+                await new Promise(resolve => setTimeout(resolve, delay));
+                continue;
+            }
+
+            if (!res.ok) {
+                const e = await res.json();
+                throw new Error(e.error?.message || 'Unknown API Error');
+            }
+
+            const data = await res.json();
+            const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+            
+            if (!text) throw new Error("LLM returned no valid content.");
+            
+            setStatus('LLM content generated successfully. Check the text area.');
+            return text;
+
+        } catch (error) {
+            if (i === 4) throw error;
+            const delay = Math.pow(2, i) * 1000 + Math.random() * 1000;
+            await new Promise(resolve => setTimeout(resolve, delay));
+        }
+    }
+}
+
 
 function addToHistory(audioUrl,text,voice){const container=document.getElementById('historyList');const div=document.createElement('div');div.className='history-card flex flex-col sm:flex-row sm:items-center justify-between';div.innerHTML=`<div class="text-sm font-medium mb-1 sm:mb-0"><strong>${voice}</strong>: ${text}</div><div class="flex space-x-2"><audio controls src="${audioUrl}" class="h-10"></audio><a href="${audioUrl}" download="redwan_speech.wav" class="text-indigo-600 hover:text-indigo-800 underline text-xs">Download</a></div>`;container.prepend(div);}
 
@@ -177,7 +243,6 @@ document.getElementById('textInput').addEventListener('input',e=>document.getEle
 document.getElementById('copyLink').addEventListener('click',()=>{
     const url=document.getElementById('audioPlayer').src;
     if(url){
-        // Clipboard API ব্যবহার করা হচ্ছে
         const tempInput = document.createElement('textarea');
         tempInput.value = url;
         document.body.appendChild(tempInput);
@@ -188,53 +253,113 @@ document.getElementById('copyLink').addEventListener('click',()=>{
     }
 });
 
-// **সংশোধিত বাটন ক্লিক ইভেন্ট**
-document.getElementById('speakButton').addEventListener('click',async()=>{
-const text=document.getElementById('textInput').value.trim();
-const voice=document.getElementById('voiceSelect').value;
-const style=document.getElementById('styleInput').value.trim();
-const speed=parseFloat(document.getElementById('speedInput').value.trim()); 
 
-const btn=document.getElementById('speakButton'),bt=document.getElementById('buttonText'),li=document.getElementById('loadingIndicator');
-const audioContainer=document.getElementById('audioContainer'),audioPlayer=document.getElementById('audioPlayer'),downloadLink=document.getElementById('downloadLink');
+document.addEventListener('DOMContentLoaded', () => {
 
-if(!text){showModal('Input Required','Please enter some text');setStatus('Input empty',true);return;}
+    // --- LLM Button Handlers ---
 
-// স্পিড ভ্যালিডেশন
-if(isNaN(speed)||speed<1||speed>5){showModal('Invalid Speed','Enter 1.0-5.0');setStatus('Invalid speed',true);return;}
+    document.getElementById('summarizeButton').addEventListener('click', async () => {
+        const textInput = document.getElementById('textInput');
+        const text = textInput.value.trim();
+        if (!text) {
+            showModal('Input Required', 'Please enter some text to summarize.');
+            return;
+        }
 
-btn.disabled=true;bt.classList.add('hidden');li.classList.remove('hidden');setStatus('Synthesizing...');
+        try {
+            const systemPrompt = "You are a helpful summarization tool. Provide a concise, single-paragraph summary of the user's input. Do not add any introductory or concluding phrases.";
+            const userQuery = `Summarize the following text: ${text}`;
+            const summary = await callGeminiTextAPI(systemPrompt, userQuery, 'summarizeButton');
+            textInput.value = summary.trim();
+            document.getElementById('charCount').textContent = `${textInput.value.length} / 2500`;
+        } catch (e) {
+            console.error('Summarization Failed:', e);
+            showModal('Summarization Error', e.message, true);
+        } finally {
+            const button = document.getElementById('summarizeButton');
+            button.disabled = false;
+            button.innerHTML = '<i data-lucide="file-text" class="w-4 h-4 mr-1"></i> ✨ Summarize Text';
+            lucide.createIcons();
+        }
+    });
 
-try{
-    // generateSpeech ফাংশন এখন শুধুমাত্র text, voiceName, এবং style প্যারামিটার নেবে
-    const {audioData,sampleRate}=await generateSpeech(text,voice,style);
+    document.getElementById('simplifyButton').addEventListener('click', async () => {
+        const textInput = document.getElementById('textInput');
+        const text = textInput.value.trim();
+        if (!text) {
+            showModal('Input Required', 'Please enter some text to simplify.');
+            return;
+        }
+
+        try {
+            const systemPrompt = "You are a professional text simplification expert. Rephrase the user's input to be clear, easy-to-understand, and suitable for a general audience. Maintain the core meaning but use simpler vocabulary and sentence structure. Do not add any introductory or concluding phrases.";
+            const userQuery = `Simplify and rephrase the following text: ${text}`;
+            const simplifiedText = await callGeminiTextAPI(systemPrompt, userQuery, 'simplifyButton');
+            textInput.value = simplifiedText.trim();
+            document.getElementById('charCount').textContent = `${textInput.value.length} / 2500`;
+        } catch (e) {
+            console.error('Simplification Failed:', e);
+            showModal('Simplification Error', e.message, true);
+        } finally {
+            const button = document.getElementById('simplifyButton');
+            button.disabled = false;
+            button.innerHTML = '<i data-lucide="wand-2" class="w-4 h-4 mr-1"></i> ✨ Simplify Text';
+            lucide.createIcons();
+        }
+    });
     
-    const pcmBuffer=base64ToArrayBufferSafe(audioData),pcm16=new Int16Array(pcmBuffer);
-    const wavBlob=pcmToWav(pcm16,sampleRate);
-    const url=URL.createObjectURL(wavBlob);
-    
-    audioPlayer.src=url;
-    downloadLink.href=url;
-    audioContainer.classList.remove('hidden');
-    
-    // ভয়েসের ডিসপ্লে নাম খুঁজে বের করা
-    const selectedVoiceDisplay = document.getElementById('voiceSelect').options[document.getElementById('voiceSelect').selectedIndex].text;
-    addToHistory(url,text,selectedVoiceDisplay);
-    
-    setStatus('Audio ready');
-}catch(e){
-    console.error('TTS Generation Failed:', e);
-    showModal('TTS Error', e.message, true);
-    setStatus(`Error: ${e.message}`,true);
-}finally{
-    btn.disabled=false;
-    bt.classList.remove('hidden');
-    li.classList.add('hidden');
+    // --- TTS Button Handler ---
+
+    document.getElementById('speakButton').addEventListener('click',async()=>{
+    const text=document.getElementById('textInput').value.trim();
+    const voice=document.getElementById('voiceSelect').value;
+    const style=document.getElementById('styleInput').value.trim();
+    const speed=parseFloat(document.getElementById('speedInput').value.trim()); 
+
+    const btn=document.getElementById('speakButton'),bt=document.getElementById('buttonText'),li=document.getElementById('loadingIndicator');
+    const audioContainer=document.getElementById('audioContainer'),audioPlayer=document.getElementById('audioPlayer'),downloadLink=document.getElementById('downloadLink');
+
+    if(!text){showModal('Input Required','Please enter some text');setStatus('Input empty',true);return;}
+
+    // Speed validation
+    if(isNaN(speed)||speed<1||speed>5){showModal('Invalid Speed','Enter 1.0-5.0');setStatus('Invalid speed',true);return;}
+
+    btn.disabled=true;bt.classList.add('hidden');li.classList.remove('hidden');setStatus('Synthesizing...');
+
+    try{
+        const {audioData,sampleRate}=await generateSpeech(text,voice,style);
+        
+        const pcmBuffer=base64ToArrayBufferSafe(audioData),pcm16=new Int16Array(pcmBuffer);
+        const wavBlob=pcmToWav(pcm16,sampleRate);
+        const url=URL.createObjectURL(wavBlob);
+        
+        audioPlayer.src=url;
+        downloadLink.href=url;
+        audioContainer.classList.remove('hidden');
+        
+        const selectedVoiceDisplay = document.getElementById('voiceSelect').options[document.getElementById('voiceSelect').selectedIndex].text;
+        addToHistory(url,text,selectedVoiceDisplay);
+        
+        setStatus('Audio ready');
+    }catch(e){
+        console.error('TTS Generation Failed:', e);
+        showModal('TTS Error', e.message, true);
+        setStatus(`Error: ${e.message}`,true);
+    }finally{
+        btn.disabled=false;
+        bt.classList.remove('hidden');
+        li.classList.add('hidden');
+        lucide.createIcons();
+    }
+    });
+
+    // Initial setup
+    populateVoices('en-US');
+    setStatus('Ready');
     lucide.createIcons();
-}
 });
 
-window.onload=()=>{lucide.createIcons();populateVoices('en-US');setStatus('Ready');};
+// window.onload replaced by DOMContentLoaded for better timing
 </script>
 
 </body>
